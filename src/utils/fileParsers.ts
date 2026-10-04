@@ -14,11 +14,12 @@ export async function parseUploadedFile(file: File): Promise<FileDataInfo> {
     return parseExcelFile(file);
   } else if (ext === 'xml') {
     return parseXmlInvoiceFile(file);
-  } else if (['docx', 'doc'].includes(ext)) {
+  } else if (ext === 'docx') {
     return parseWordFile(file);
-  } else {
+  } else if (['txt'].includes(ext)) {
     return parseTextFile(file);
   }
+  throw new Error(`Định dạng .${ext || 'không xác định'} chưa được hỗ trợ. Hãy dùng XLSX, XLS, CSV, XML, DOCX hoặc TXT.`);
 }
 
 /**
@@ -28,6 +29,7 @@ export async function parseExcelFile(file: File, sheetName?: string): Promise<Fi
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
   const sheetNames = workbook.SheetNames;
+  if (sheetNames.length === 0) throw new Error('Tệp Excel không có trang tính để đọc.');
   const activeSheetName = sheetName && sheetNames.includes(sheetName) ? sheetName : sheetNames[0];
 
   const worksheet = workbook.Sheets[activeSheetName];
@@ -64,6 +66,7 @@ export async function parseExcelFile(file: File, sheetName?: string): Promise<Fi
     selectedSheet: activeSheetName,
     headers,
     rawRows: cleanedRows,
+    sourceFile: file,
   };
 }
 
@@ -225,3 +228,4 @@ export async function parseTextFile(file: File): Promise<FileDataInfo> {
     rawRows,
   };
 }
+
