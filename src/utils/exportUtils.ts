@@ -33,7 +33,8 @@ export function exportDiffToExcel(
       
       rowObj[`File A - ${k}`] = valA;
       rowObj[`File B - ${k}`] = valB;
-      if (valA !== valB) {
+      const isDiff = item.cellDiffs?.[k]?.isDiff ?? valA !== valB;
+      if (isDiff) {
         rowObj[`Chênh lệch - ${k}`] = item.cellDiffs?.[k]?.delta !== undefined
           ? item.cellDiffs[k].delta
           : 'Sai lệch nội dung';
@@ -82,3 +83,4 @@ function translateStatus(status: string): string {
       return status;
   }
 }
+

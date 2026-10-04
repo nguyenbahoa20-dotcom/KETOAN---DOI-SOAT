@@ -6,7 +6,7 @@ import {
   DiffSummary,
 } from './types';
 import { SAMPLE_DATASETS } from './data/sampleDatasets';
-import { parseUploadedFile } from './utils/fileParsers';
+import { parseExcelFile, parseUploadedFile } from './utils/fileParsers';
 import { reconcileTabularData } from './utils/diffEngine';
 import { exportDiffToExcel } from './utils/exportUtils';
 import { Navbar } from './components/Navbar';
@@ -23,8 +23,10 @@ export default function App() {
   const [fileB, setFileB] = useState<FileDataInfo | null>(null);
   const [isLoadingA, setIsLoadingA] = useState(false);
   const [isLoadingB, setIsLoadingB] = useState(false);
+  const [uploadErrorA, setUploadErrorA] = useState('');
+  const [uploadErrorB, setUploadErrorB] = useState('');
 
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>('auto_detect');
   const [activePresetId, setActivePresetId] = useState<string>('xml_vs_excel_vat');
 
   // Normalization Options
@@ -60,6 +62,7 @@ export default function App() {
       name: preset.fileA.name,
       size: 15420,
       format: preset.fileA.format,
+      isSample: true,
       headers: preset.fileA.data.length > 0 ? Object.keys(preset.fileA.data[0]) : [],
       rawRows: preset.fileA.data,
       rawText: preset.fileA.format === 'word' ? preset.fileA.data.map((d: any) => d['Nội dung điều khoản / Đoạn văn']).join('\n') : undefined,
@@ -69,6 +72,7 @@ export default function App() {
       name: preset.fileB.name,
       size: 18200,
       format: preset.fileB.format,
+      isSample: true,
       headers: preset.fileB.data.length > 0 ? Object.keys(preset.fileB.data[0]) : [],
       rawRows: preset.fileB.data,
       rawText: preset.fileB.format === 'word' ? preset.fileB.data.map((d: any) => d['Nội dung điều khoản / Đoạn văn']).join('\n') : undefined,
@@ -76,11 +80,12 @@ export default function App() {
 
     setFileA(infoA);
     setFileB(infoB);
-    if (preset.suggestedKey) {
-      setSelectedKey(preset.suggestedKey);
-    } else {
-      setSelectedKey(null);
-    }
+    setSelectedKey(preset.suggestedKey || 'auto_detect');
+    setSearchQuery('');
+    setStatusFilter('discrepancies');
+    setCustomAuditNotes({});
+    setUploadErrorA('');
+    setUploadErrorB('');
   };
 
   // Upload Handlers
@@ -89,9 +94,13 @@ export default function App() {
     try {
       const parsed = await parseUploadedFile(file);
       setFileA(parsed);
-      setSelectedKey(null);
+      setSelectedKey('auto_detect');
+      setActivePresetId('');
+      setCustomAuditNotes({});
+      setUploadErrorA('');
     } catch (err) {
       console.error("Error parsing File A:", err);
+      setUploadErrorA(err instanceof Error ? err.message : 'Không thể đọc File A.');
     } finally {
       setIsLoadingA(false);
     }
@@ -102,11 +111,39 @@ export default function App() {
     try {
       const parsed = await parseUploadedFile(file);
       setFileB(parsed);
-      setSelectedKey(null);
+      setSelectedKey('auto_detect');
+      setActivePresetId('');
+      setCustomAuditNotes({});
+      setUploadErrorB('');
     } catch (err) {
       console.error("Error parsing File B:", err);
+      setUploadErrorB(err instanceof Error ? err.message : 'Không thể đọc File B.');
     } finally {
       setIsLoadingB(false);
+    }
+  };
+
+  const handleSelectSheetA = async (sheet: string) => {
+    if (!fileA?.sourceFile) return;
+    try {
+      setFileA(await parseExcelFile(fileA.sourceFile, sheet));
+      setSelectedKey('auto_detect');
+      setCustomAuditNotes({});
+      setUploadErrorA('');
+    } catch (err) {
+      setUploadErrorA(err instanceof Error ? err.message : 'Không thể đọc trang tính này.');
+    }
+  };
+
+  const handleSelectSheetB = async (sheet: string) => {
+    if (!fileB?.sourceFile) return;
+    try {
+      setFileB(await parseExcelFile(fileB.sourceFile, sheet));
+      setSelectedKey('auto_detect');
+      setCustomAuditNotes({});
+      setUploadErrorB('');
+    } catch (err) {
+      setUploadErrorB(err instanceof Error ? err.message : 'Không thể đọc trang tính này.');
     }
   };
 
@@ -159,7 +196,7 @@ export default function App() {
     return reconciliationResults
       .map((item) => ({
         ...item,
-        auditVerificationNote: customAuditNotes[item.id] || item.auditVerificationNote,
+        auditVerificationNote: customAuditNotes[item.id] ?? item.auditVerificationNote,
       }))
       .filter((item) => {
         // Status filter logic
@@ -187,9 +224,13 @@ export default function App() {
   }, [reconciliationResults, statusFilter, searchQuery, customAuditNotes]);
 
   const handleExportExcel = () => {
-    if (filteredResults.length === 0) return;
+    if (reconciliationResults.length === 0) return;
+    const exportResults = reconciliationResults.map((item) => ({
+      ...item,
+      auditVerificationNote: customAuditNotes[item.id] ?? item.auditVerificationNote,
+    }));
     exportDiffToExcel(
-      filteredResults,
+      exportResults,
       summary,
       fileA?.name || 'File A',
       fileB?.name || 'File B'
@@ -199,10 +240,13 @@ export default function App() {
   const handleReset = () => {
     setFileA(null);
     setFileB(null);
-    setSelectedKey(null);
+    setSelectedKey('auto_detect');
     setSearchQuery('');
     setStatusFilter('discrepancies');
     setCustomAuditNotes({});
+    setActivePresetId('');
+    setUploadErrorA('');
+    setUploadErrorB('');
   };
 
   const isWordContractMode = fileA?.format === 'word' || fileB?.format === 'word';
@@ -253,28 +297,34 @@ export default function App() {
           onFileUploadB={handleFileUploadB}
           isLoadingA={isLoadingA}
           isLoadingB={isLoadingB}
+          onSelectSheetA={handleSelectSheetA}
+          onSelectSheetB={handleSelectSheetB}
+          errorA={uploadErrorA}
+          errorB={uploadErrorB}
         />
 
         {/* NORMALIZATION & FILTER TOOLBAR */}
         {fileA && fileB && (
           <>
-            <NormalizationToolbar
-              availableKeys={availableKeys}
-              selectedKey={selectedKey}
-              onSelectKey={setSelectedKey}
-              options={options}
-              onOptionsChange={setOptions}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              matchedCount={summary.matchedCount}
-              mismatchedCount={summary.mismatchedCount}
-              orphanACount={summary.orphanACount}
-              orphanBCount={summary.orphanBCount}
-              taxAlertCount={summary.taxAlertCount}
-              totalRows={summary.totalRows}
-            />
+            {!isWordContractMode && (
+              <NormalizationToolbar
+                availableKeys={availableKeys}
+                selectedKey={selectedKey}
+                onSelectKey={setSelectedKey}
+                options={options}
+                onOptionsChange={setOptions}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
+                matchedCount={summary.matchedCount}
+                mismatchedCount={summary.mismatchedCount}
+                orphanACount={summary.orphanACount}
+                orphanBCount={summary.orphanBCount}
+                taxAlertCount={summary.taxAlertCount}
+                totalRows={summary.totalRows}
+              />
+            )}
 
             {/* TABULAR DIFF OR WORD DIFF */}
             {isWordContractMode ? (
@@ -327,3 +377,4 @@ export default function App() {
     </div>
   );
 }
+

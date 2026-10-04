@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DiffSummary, RowDiffResult } from '../types';
-import { Sparkles, X, ShieldAlert, FileText, CheckCircle, RefreshCw } from 'lucide-react';
+import { Sparkles, X, ShieldAlert, RefreshCw } from 'lucide-react';
 
 interface AiTaxAdvisorModalProps {
   isOpen: boolean;
@@ -24,8 +24,9 @@ export const AiTaxAdvisorModal: React.FC<AiTaxAdvisorModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen && !analysisText) {
-      runAnalysis();
+    if (isOpen) {
+      setAnalysisText('');
+      setErrorMsg(null);
     }
   }, [isOpen]);
 
@@ -63,21 +64,18 @@ export const AiTaxAdvisorModal: React.FC<AiTaxAdvisorModalProps> = ({
       if (resp.ok && data.analysis) {
         setAnalysisText(data.analysis);
       } else {
-        // Fallback offline expert rules
-        generateOfflineAnalysis(summary, discrepanciesSample);
+        setErrorMsg(data.error || 'Không thể hoàn thành phân tích AI.');
       }
-    } catch (err) {
-      // Fallback offline expert rules
-      generateOfflineAnalysis(summary, discrepanciesSample);
+    } catch {
+      setErrorMsg('Không thể kết nối dịch vụ AI. Bạn có thể tạo báo cáo quy tắc ngay trên thiết bị.');
     } finally {
       setLoading(false);
     }
   };
 
   const generateOfflineAnalysis = (sum: DiffSummary, sample: any[]) => {
-    const report = `### 📋 BÁO CÁO PHÂN TÍCH VÀ KHUYẾN NGHỊ RỦI RO THUẾ & KẾ TOÁN (OFFLINE SPECIALIST)
+    const report = `### BÁO CÁO SÀNG LỌC ĐỐI SOÁT (TẠO NGOẠI TUYẾN)
 
-**Chuyên gia:** Kế toán trưởng & Đội ngũ Kiểm toán Thuế
 **Tài liệu đối soát:** ${fileAName} ↔ ${fileBName}
 
 ---
@@ -89,16 +87,15 @@ export const AiTaxAdvisorModal: React.FC<AiTaxAdvisorModalProps> = ({
 - **Số chứng từ bỏ sót / lệch bên:** ${sum.orphanACount + sum.orphanBCount} bản ghi
 - **Tổng chênh lệch giá trị tài chính:** ${new Intl.NumberFormat('vi-VN').format(sum.totalAmountDiff)} VNĐ
 
-#### 2. 🔍 Phân Tích Nguyên Nhân Sai Lệch Tiêu Biểu
-1. **Rủi ro Thuế suất VAT (8% vs 10%):** Do áp dụng Nghị định giảm thuế GTGT giữa các mặt hàng/kỳ kê khai.
-2. **Lệch Mã Số Thuế (MST):** Nhập liệu thủ công dẫn tới sai định dạng MST của người bán/người mua.
-3. **Lệch tiền do làm tròn số:** Chênh lệch vài đồng lẻ giữa XML Tổng cục Thuế và phần mềm MISA/FAST/Excel.
-4. **Chứng từ phát sinh thiếu đối ứng:** Hóa đơn đã xuất nhưng đối tác chưa kê khai hoặc ngược lại.
+#### 2. Dữ liệu cần kiểm tra
+${sample.length ? sample.map((item, index) => `${index + 1}. ${item.keyVal}: ${item.auditNote || item.status}${item.taxAlert ? ` — ${item.taxAlert}` : ''}`).join('\n') : 'Không có dòng sai lệch trong mẫu gửi phân tích.'}
 
-#### 3. 📝 Hướng Dẫn Kế Toán Xử Lý Chi Tiết (Thông tư 78/2021 & Nghị định 123/2020)
-- **Bước 1:** Đối với các dòng lệch VAT hoặc Mã số thuế, thực hiện lập **Biên bản điều chỉnh hóa đơn** hoặc hóa đơn thay thế.
-- **Bước 2:** Lập tờ khai bổ sung **KHBS (Thuế GTGT/TNDN)** nếu sai lệch dẫn đến thiếu số thuế phải nộp.
-- **Bước 3:** Cập nhật kết quả xử lý vào **Cột kiểm chứng** trên bảng đối soát để trình Kế toán trưởng phê duyệt.`;
+#### 3. Bước kiểm tra tiếp theo
+- Đối chiếu chứng từ gốc và xác nhận nguyên nhân từng chênh lệch với bên liên quan.
+- Ghi kết quả xác minh và chứng từ xử lý vào cột kiểm chứng.
+- Chuyển vấn đề có thể ảnh hưởng kê khai cho kế toán trưởng hoặc chuyên gia thuế kiểm tra theo quy định hiện hành.
+
+Đây là báo cáo sàng lọc dựa trên dữ liệu đã đối soát, không phải kết luận pháp lý hay tư vấn thuế.`;
 
     setAnalysisText(report);
   };
@@ -118,8 +115,8 @@ export const AiTaxAdvisorModal: React.FC<AiTaxAdvisorModalProps> = ({
               <h2 className="text-base font-bold text-slate-100">
                 Tư Vấn Rủi Ro Thuế & Kế Toán Chi Tiết (AI Auditor)
               </h2>
-              <p className="text-xs text-slate-400">
-                Phân tích theo Thông tư 78/2021/TT-BTC, Nghị định 123/2020/NĐ-CP & Luật Quản lý Thuế
+          <p className="text-xs text-slate-400">
+                Phân tích tham khảo dựa trên dữ liệu đối soát
               </p>
             </div>
           </div>
@@ -138,9 +135,19 @@ export const AiTaxAdvisorModal: React.FC<AiTaxAdvisorModalProps> = ({
               <RefreshCw className="w-10 h-10 animate-spin mb-3" />
               <p className="font-semibold text-sm">Đang quét rủi ro & tổng hợp khuyến nghị kế toán...</p>
             </div>
-          ) : (
+          ) : analysisText ? (
             <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 font-sans whitespace-pre-wrap">
               {analysisText}
+            </div>
+          ) : (
+            <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-4">
+              <p>Dữ liệu kế toán có thể chứa thông tin nhạy cảm. Chỉ tiếp tục nếu bạn được phép chia sẻ dữ liệu này.</p>
+              <p>Nếu chọn AI, tên hai tệp, thống kê đối soát và tối đa 10 dòng sai lệch (bao gồm giá trị từng ô) sẽ được gửi đến Google Gemini.</p>
+              {errorMsg && <p role="alert" className="text-rose-300">{errorMsg}</p>}
+              <div className="flex flex-wrap gap-2">
+                <button onClick={runAnalysis} className="px-3 py-2 bg-purple-700 hover:bg-purple-600 rounded-lg font-semibold">Gửi mẫu đến Gemini để phân tích</button>
+                <button onClick={() => generateOfflineAnalysis(summary, results.filter((r) => r.status !== 'matched' || r.taxAlert).slice(0, 10).map((r) => ({ keyVal: r.keyVal, auditNote: r.auditVerificationNote, status: r.status, taxAlert: r.taxAlert })))} className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg font-semibold">Tạo báo cáo ngoại tuyến</button>
+              </div>
             </div>
           )}
         </div>
@@ -149,7 +156,7 @@ export const AiTaxAdvisorModal: React.FC<AiTaxAdvisorModalProps> = ({
         <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-2 text-xs text-slate-400">
             <ShieldAlert className="w-4 h-4 text-purple-400" />
-            <span>Phân tích độc lập dựa trên luật thuế & báo cáo đối soát</span>
+            <span>Kết quả chỉ mang tính tham khảo; cần xác minh trước khi xử lý nghiệp vụ</span>
           </div>
           <button
             onClick={onClose}
@@ -162,3 +169,4 @@ export const AiTaxAdvisorModal: React.FC<AiTaxAdvisorModalProps> = ({
     </div>
   );
 };
+

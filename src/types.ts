@@ -63,6 +63,8 @@ export interface FileDataInfo {
   rawRows?: Record<string, any>[];
   rawText?: string;
   xmlParsedData?: any;
+  sourceFile?: File;
+  isSample?: boolean;
 }
 
 export interface SamplePreset {
@@ -75,3 +77,4 @@ export interface SamplePreset {
   suggestedKey?: string;
   description: string;
 }
+

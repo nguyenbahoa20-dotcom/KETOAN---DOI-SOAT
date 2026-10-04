@@ -93,7 +93,7 @@ export const DiffTableView: React.FC<DiffTableViewProps> = ({ results, onUpdateA
           <tbody className="divide-y divide-slate-200 bg-white text-slate-800 font-medium">
             {results.map((item, idx) => {
               const statusStyle = getStatusRowStyle(item.status);
-              const formattedNote = getConciseAuditNote(item);
+              const formattedNote = item.auditVerificationNote;
 
               return (
                 <tr key={item.id} className={`hover:bg-slate-50 transition ${statusStyle.rowBg}`}>
@@ -210,26 +210,6 @@ export const DiffTableView: React.FC<DiffTableViewProps> = ({ results, onUpdateA
   );
 };
 
-function getConciseAuditNote(item: RowDiffResult): string {
-  if (item.status === 'orphan_a') return 'Thiếu ở File B';
-  if (item.status === 'orphan_b') return 'Thiếu ở File A';
-  if (item.status === 'matched') return 'Khớp 100%';
-
-  if (item.cellDiffs) {
-    const diffParts: string[] = [];
-    Object.keys(item.cellDiffs).forEach((col) => {
-      if (!col.startsWith('__EMPTY') && item.cellDiffs![col].isDiff) {
-        const vA = formatValueDisplay(item.cellDiffs![col].valA);
-        const vB = formatValueDisplay(item.cellDiffs![col].valB);
-        diffParts.push(`${col}: ${vA} -> ${vB}`);
-      }
-    });
-    if (diffParts.length > 0) return diffParts.join('; ');
-  }
-
-  return item.auditVerificationNote.replace(/^Sai lệch chi tiết ở các cột:\s*/i, '');
-}
-
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
     case 'matched':
@@ -281,3 +261,4 @@ function formatValueDisplay(val: any): string {
   }
   return String(val);
 }
+
