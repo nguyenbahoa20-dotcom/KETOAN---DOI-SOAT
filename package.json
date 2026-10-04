@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "phan-mem-doi-soat-ke-toan",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -38,3 +38,4 @@
     "vite": "^6.2.3"
   }
 }
+
