@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { XMLParser } from 'fast-xml-parser';
 import mammoth from 'mammoth';
 import { FileDataInfo, FileFormat } from '../types';
+import { parseFinancialNumber } from './dataNormalizer';
 
 /**
  * Parses uploaded files based on their extension / format
@@ -133,11 +134,11 @@ function extractRowsFromXml(xmlObj: any): Record<string, any>[] {
         ...invoiceHeaderMeta,
         'Tên hàng hóa/dịch vụ': item?.THHDVu || item?.ItemName || '',
         'Đơn vị tính': item?.DVTinh || item?.Unit || '',
-        'Số lượng': Number(item?.SLuong || item?.Quantity || 0),
-        'Đơn giá': Number(item?.DGia || item?.UnitPrice || 0),
-        'Thành tiền trước thuế': Number(item?.ThTien || item?.Amount || 0),
+        'Số lượng': parseXmlNumber(item?.SLuong ?? item?.Quantity),
+        'Đơn giá': parseXmlNumber(item?.DGia ?? item?.UnitPrice),
+        'Thành tiền trước thuế': parseXmlNumber(item?.ThTien ?? item?.Amount),
         'Thuế suất VAT': item?.TSuat || item?.TaxRate || '',
-        'Tiền thuế Line': Number(item?.TThue || item?.TaxAmount || 0),
+        'Tiền thuế Line': parseXmlNumber(item?.TThue ?? item?.TaxAmount),
       });
     });
   } else if (typeof dshhDVu === 'object' && dshhDVu !== null) {
@@ -146,11 +147,11 @@ function extractRowsFromXml(xmlObj: any): Record<string, any>[] {
       ...invoiceHeaderMeta,
       'Tên hàng hóa/dịch vụ': dshhDVu?.THHDVu || dshhDVu?.ItemName || '',
       'Đơn vị tính': dshhDVu?.DVTinh || dshhDVu?.Unit || '',
-      'Số lượng': Number(dshhDVu?.SLuong || 0),
-      'Đơn giá': Number(dshhDVu?.DGia || 0),
-      'Thành tiền trước thuế': Number(dshhDVu?.ThTien || 0),
+      'Số lượng': parseXmlNumber(dshhDVu?.SLuong),
+      'Đơn giá': parseXmlNumber(dshhDVu?.DGia),
+      'Thành tiền trước thuế': parseXmlNumber(dshhDVu?.ThTien),
       'Thuế suất VAT': dshhDVu?.TSuat || '',
-      'Tiền thuế Line': Number(dshhDVu?.TThue || 0),
+      'Tiền thuế Line': parseXmlNumber(dshhDVu?.TThue),
     });
   } else {
     // Single header summary row
@@ -158,6 +159,13 @@ function extractRowsFromXml(xmlObj: any): Record<string, any>[] {
   }
 
   return rows.length > 0 ? rows : [flattenObject(xmlObj)];
+}
+
+function parseXmlNumber(value: unknown): number | string {
+  if (value === undefined || value === null || value === '') return 0;
+  if (typeof value === 'number') return value;
+  const parsed = parseFinancialNumber(String(value));
+  return Number.isFinite(parsed) ? parsed : String(value);
 }
 
 /**
