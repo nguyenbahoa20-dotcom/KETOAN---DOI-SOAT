@@ -1,0 +1,6 @@
+{
+  "name": "Phần Mềm Đối Soát Toàn Diện Kế Toán",
+  "description": "Hệ thống đối soát toàn diện chứng từ, hóa đơn, bảng kê kế toán - thuế (Excel, Word, PDF, XML). Diffing chi tiết ô/dòng, phát hiện chênh lệch thuế, VAT, mã tham chiếu và xuất báo cáo kiểm toán.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
