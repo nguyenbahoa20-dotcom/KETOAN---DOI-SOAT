@@ -196,7 +196,7 @@ export default function App() {
     return reconciliationResults
       .map((item) => ({
         ...item,
-        auditVerificationNote: customAuditNotes[item.id] || item.auditVerificationNote,
+        auditVerificationNote: customAuditNotes[item.id] ?? item.auditVerificationNote,
       }))
       .filter((item) => {
         // Status filter logic
@@ -224,9 +224,13 @@ export default function App() {
   }, [reconciliationResults, statusFilter, searchQuery, customAuditNotes]);
 
   const handleExportExcel = () => {
-    if (filteredResults.length === 0) return;
+    if (reconciliationResults.length === 0) return;
+    const exportResults = reconciliationResults.map((item) => ({
+      ...item,
+      auditVerificationNote: customAuditNotes[item.id] ?? item.auditVerificationNote,
+    }));
     exportDiffToExcel(
-      filteredResults,
+      exportResults,
       summary,
       fileA?.name || 'File A',
       fileB?.name || 'File B'
