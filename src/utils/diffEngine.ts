@@ -7,7 +7,7 @@ import {
   RowDiffResult,
   TextClauseDiff,
 } from '../types';
-import { areValuesEqual, normalizeValue } from './dataNormalizer';
+import { areValuesEqual, normalizeValue, parseFinancialNumber } from './dataNormalizer';
 
 /**
  * Core Reconciliation Algorithm for Tabular Data (Excel, XML, Structured Lists)
@@ -36,35 +36,49 @@ export function reconcileTabularData(
   );
 
   // Auto-detect key if not provided
-  const effectiveKey = primaryKeyCol || detectPrimaryKey(keysA, keysB);
+  const effectiveKey = primaryKeyCol === 'row_by_row_index'
+    ? null
+    : primaryKeyCol && primaryKeyCol !== 'auto_detect'
+      ? primaryKeyCol
+      : detectPrimaryKey(keysA, keysB);
 
   if (effectiveKey && effectiveKey !== 'row_by_row_index') {
     // ----------------------------------------------------
     // STRATEGY A: PRIMARY KEY / REFERENCE COLUMN MATCHING
     // ----------------------------------------------------
-    const mapA = new Map<string, Record<string, any>>();
-    const mapB = new Map<string, Record<string, any>>();
+    const mapA = new Map<string, { row: Record<string, any>; keyVal: string }>();
+    const mapB = new Map<string, { row: Record<string, any>; keyVal: string }>();
+    const occurrencesA = new Map<string, number>();
+    const occurrencesB = new Map<string, number>();
+
+    const addRow = (
+      target: Map<string, { row: Record<string, any>; keyVal: string }>,
+      occurrences: Map<string, number>,
+      row: Record<string, any>,
+      idx: number,
+      side: 'A' | 'B'
+    ) => {
+      const normalized = String(normalizeValue(row[effectiveKey], options));
+      const keyVal = normalized || `ROW_${side}_${idx + 1}`;
+      const occurrence = occurrences.get(keyVal) || 0;
+      occurrences.set(keyVal, occurrence + 1);
+      target.set(JSON.stringify([keyVal, occurrence]), { row, keyVal });
+    };
 
     rowsA.forEach((row, idx) => {
-      const rawKey = row[effectiveKey];
-      const normKey = String(normalizeValue(rawKey, options));
-      const keyVal = normKey || `ROW_A_${idx + 1}`;
-      mapA.set(keyVal, row);
+      addRow(mapA, occurrencesA, row, idx, 'A');
     });
 
     rowsB.forEach((row, idx) => {
-      const rawKey = row[effectiveKey];
-      const normKey = String(normalizeValue(rawKey, options));
-      const keyVal = normKey || `ROW_B_${idx + 1}`;
-      mapB.set(keyVal, row);
+      addRow(mapB, occurrencesB, row, idx, 'B');
     });
 
     // Process all keys from A
     const processedKeys = new Set<string>();
 
-    mapA.forEach((rowA, keyVal) => {
-      processedKeys.add(keyVal);
-      const rowB = mapB.get(keyVal);
+    mapA.forEach(({ row: rowA, keyVal }, identity) => {
+      processedKeys.add(identity);
+      const rowB = mapB.get(identity)?.row;
 
       if (!rowB) {
         // Orphan in A (Missing in B)
@@ -73,7 +87,7 @@ export function reconcileTabularData(
         totalValAAmount += amountA;
 
         results.push({
-          id: `diff_a_${keyVal}`,
+          id: `diff_a_${identity}`,
           keyVal,
           status: 'orphan_a',
           rowA,
@@ -101,10 +115,10 @@ export function reconcileTabularData(
           let delta: number | undefined = undefined;
           let deltaPercent: number | undefined = undefined;
 
-          const numA = Number(String(valA).replace(/,/g, ''));
-          const numB = Number(String(valB).replace(/,/g, ''));
+          const numA = parseFinancialNumber(String(valA ?? ''));
+          const numB = parseFinancialNumber(String(valB ?? ''));
 
-          if (!isNaN(numA) && !isNaN(numB) && valA !== '' && valB !== '') {
+          if (Number.isFinite(numA) && Number.isFinite(numB) && valA !== '' && valB !== '') {
             delta = numB - numA;
             if (numA !== 0) deltaPercent = (delta / Math.abs(numA)) * 100;
           }
@@ -119,7 +133,7 @@ export function reconcileTabularData(
             isDiff: !isSame,
             delta,
             deltaPercent,
-            diffType: typeof numA === 'number' && !isNaN(numA) ? 'numeric' : 'text',
+            diffType: Number.isFinite(numA) ? 'numeric' : 'text',
           };
         });
 
@@ -149,7 +163,7 @@ export function reconcileTabularData(
         }
 
         results.push({
-          id: `diff_match_${keyVal}`,
+          id: `diff_match_${identity}`,
           keyVal,
           status,
           rowA,
@@ -163,14 +177,14 @@ export function reconcileTabularData(
     });
 
     // Process keys in B that were not in A (Orphan in B)
-    mapB.forEach((rowB, keyVal) => {
-      if (!processedKeys.has(keyVal)) {
+    mapB.forEach(({ row: rowB, keyVal }, identity) => {
+      if (!processedKeys.has(identity)) {
         orphanBCount++;
         const amountB = getRowAmount(rowB);
         totalValBAmount += amountB;
 
         results.push({
-          id: `diff_b_${keyVal}`,
+          id: `diff_b_${identity}`,
           keyVal,
           status: 'orphan_b',
           rowA: undefined,
@@ -341,16 +355,16 @@ export function getRowAmount(row: Record<string, any>): number {
 
   for (const k of amountKeys) {
     if (row[k] !== undefined && row[k] !== null && row[k] !== '') {
-      const num = Number(String(row[k]).replace(/[,_ ]/g, ''));
-      if (!isNaN(num)) return num;
+      const num = typeof row[k] === 'number' ? row[k] : parseFinancialNumber(String(row[k]));
+      if (Number.isFinite(num)) return num;
     }
   }
 
   // Fallback: search any key with 'tiền' or 'amount'
   for (const k in row) {
     if (k.toLowerCase().includes('tiền') || k.toLowerCase().includes('amount')) {
-      const num = Number(String(row[k]).replace(/[,_ ]/g, ''));
-      if (!isNaN(num)) return num;
+      const num = typeof row[k] === 'number' ? row[k] : parseFinancialNumber(String(row[k]));
+      if (Number.isFinite(num)) return num;
     }
   }
 
@@ -371,16 +385,23 @@ export function detectTaxAlerts(
   const vatA = findFieldValue(rowA, ['Thuế suất VAT', 'TSuat', 'VATRate', 'Thuế suất']);
   const vatB = findFieldValue(rowB, ['Thuế suất VAT', 'TSuat', 'VATRate', 'Thuế suất']);
 
-  if (vatA && vatB && vatA !== vatB) {
+  if (hasValue(vatA) && hasValue(vatB) && String(vatA).trim().toLowerCase() !== String(vatB).trim().toLowerCase()) {
     alerts.push(`⚠️ Lệch Thuế Suất VAT (${vatA} vs ${vatB}) - Cần kiểm tra Nghị định giảm thuế 8%`);
   }
 
-  // Check Tax Code (MST)
-  const mstA = findFieldValue(rowA, ['MST', 'MST NBM', 'MST NMua', 'Mã số thuế', 'SellerTaxCode']);
-  const mstB = findFieldValue(rowB, ['MST', 'MST NBM', 'MST NMua', 'Mã số thuế', 'SellerTaxCode']);
-
-  if (mstA && mstB && mstA.replace(/\D/g, '') !== mstB.replace(/\D/g, '')) {
-    alerts.push(`❌ Sai lệch Mã Số Thuế (${mstA} vs ${mstB}) - Rủi ro hóa đơn không hợp lệ`);
+  // Compare seller and buyer tax codes against the same party in each file.
+  const taxCodeFields = [
+    { label: 'người bán', keys: ['MST Người Bán', 'MST NBM', 'SellerTaxCode', 'Mã số thuế người bán'] },
+    { label: 'người mua', keys: ['MST Người Mua', 'MST NMua', 'BuyerTaxCode', 'Mã số thuế người mua'] },
+    { label: '', keys: ['MST', 'Mã số thuế'] },
+  ];
+  for (const field of taxCodeFields) {
+    const mstA = findFieldValue(rowA, field.keys);
+    const mstB = findFieldValue(rowB, field.keys);
+    if (hasValue(mstA) && hasValue(mstB)
+      && String(mstA).replace(/\D/g, '') !== String(mstB).replace(/\D/g, '')) {
+      alerts.push(`❌ Sai lệch Mã số thuế${field.label ? ` ${field.label}` : ''} (${mstA} vs ${mstB}) - Cần kiểm tra chứng từ gốc`);
+    }
   }
 
   // Check Tax Amount vs Total Amount
@@ -388,9 +409,9 @@ export function detectTaxAlerts(
   const taxAmtB = findFieldValue(rowB, ['Tiền thuế VAT', 'TgTThue', 'TaxAmount']);
 
   if (taxAmtA !== undefined && taxAmtB !== undefined) {
-    const numTaxA = Number(taxAmtA);
-    const numTaxB = Number(taxAmtB);
-    if (!isNaN(numTaxA) && !isNaN(numTaxB) && Math.abs(numTaxA - numTaxB) > 1) {
+    const numTaxA = typeof taxAmtA === 'number' ? taxAmtA : parseFinancialNumber(String(taxAmtA));
+    const numTaxB = typeof taxAmtB === 'number' ? taxAmtB : parseFinancialNumber(String(taxAmtB));
+    if (Number.isFinite(numTaxA) && Number.isFinite(numTaxB) && Math.abs(numTaxA - numTaxB) > 1) {
       alerts.push(`⚠️ Chênh lệch tiền thuế VAT: ${new Intl.NumberFormat('vi-VN').format(Math.abs(numTaxA - numTaxB))} VNĐ`);
     }
   }
@@ -406,6 +427,10 @@ function findFieldValue(row: Record<string, any>, possibleKeys: string[]): any {
     }
   }
   return undefined;
+}
+
+function hasValue(value: unknown): boolean {
+  return value !== undefined && value !== null && String(value).trim() !== '';
 }
 
 /**
