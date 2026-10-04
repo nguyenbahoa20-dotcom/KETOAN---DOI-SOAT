@@ -302,23 +302,25 @@ export default function App() {
         {/* NORMALIZATION & FILTER TOOLBAR */}
         {fileA && fileB && (
           <>
-            <NormalizationToolbar
-              availableKeys={availableKeys}
-              selectedKey={selectedKey}
-              onSelectKey={setSelectedKey}
-              options={options}
-              onOptionsChange={setOptions}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              matchedCount={summary.matchedCount}
-              mismatchedCount={summary.mismatchedCount}
-              orphanACount={summary.orphanACount}
-              orphanBCount={summary.orphanBCount}
-              taxAlertCount={summary.taxAlertCount}
-              totalRows={summary.totalRows}
-            />
+            {!isWordContractMode && (
+              <NormalizationToolbar
+                availableKeys={availableKeys}
+                selectedKey={selectedKey}
+                onSelectKey={setSelectedKey}
+                options={options}
+                onOptionsChange={setOptions}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
+                matchedCount={summary.matchedCount}
+                mismatchedCount={summary.mismatchedCount}
+                orphanACount={summary.orphanACount}
+                orphanBCount={summary.orphanBCount}
+                taxAlertCount={summary.taxAlertCount}
+                totalRows={summary.totalRows}
+              />
+            )}
 
             {/* TABULAR DIFF OR WORD DIFF */}
             {isWordContractMode ? (
