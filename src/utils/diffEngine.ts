@@ -385,7 +385,12 @@ export function detectTaxAlerts(
   const vatA = findFieldValue(rowA, ['Thuế suất VAT', 'TSuat', 'VATRate', 'Thuế suất']);
   const vatB = findFieldValue(rowB, ['Thuế suất VAT', 'TSuat', 'VATRate', 'Thuế suất']);
 
-  if (hasValue(vatA) && hasValue(vatB) && String(vatA).trim().toLowerCase() !== String(vatB).trim().toLowerCase()) {
+  const vatNumberA = hasValue(vatA) ? parseFinancialNumber(String(vatA)) : Number.NaN;
+  const vatNumberB = hasValue(vatB) ? parseFinancialNumber(String(vatB)) : Number.NaN;
+  const sameVat = Number.isFinite(vatNumberA) && Number.isFinite(vatNumberB)
+    ? vatNumberA === vatNumberB
+    : String(vatA).trim().toLowerCase() === String(vatB).trim().toLowerCase();
+  if (hasValue(vatA) && hasValue(vatB) && !sameVat) {
     alerts.push(`⚠️ Lệch Thuế Suất VAT (${vatA} vs ${vatB}) - Cần kiểm tra Nghị định giảm thuế 8%`);
   }
 
