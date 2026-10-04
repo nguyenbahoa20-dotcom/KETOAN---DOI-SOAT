@@ -51,13 +51,12 @@ export const NormalizationToolbar: React.FC<NormalizationToolbarProps> = ({
           </div>
           <select
             id="primary-key-selector"
-            value={selectedKey || 'row_by_row_index'}
-            onChange={(e) =>
-              onSelectKey(e.target.value === 'row_by_row_index' ? null : e.target.value)
-            }
+            value={selectedKey || 'auto_detect'}
+            onChange={(e) => onSelectKey(e.target.value)}
             className="bg-slate-50 border border-slate-300 text-slate-900 font-semibold rounded-md px-2.5 py-1 text-xs focus:ring-2 focus:ring-emerald-600 focus:outline-none"
           >
-            <option value="row_by_row_index">⚡ Tự động so sánh dòng theo dòng (Row-by-Row)</option>
+            <option value="auto_detect">✨ Tự nhận diện cột khóa</option>
+            <option value="row_by_row_index">⚡ So sánh dòng theo dòng</option>
             {availableKeys.map((k) => (
               <option key={k} value={k}>
                 🔑 Theo cột: {k}
@@ -65,12 +64,7 @@ export const NormalizationToolbar: React.FC<NormalizationToolbarProps> = ({
             ))}
           </select>
 
-          <button
-            onClick={() => onSelectKey(selectedKey)}
-            className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-md shadow-sm transition flex items-center space-x-1"
-          >
-            <span>Chạy Đối Soát</span>
-          </button>
+          <span className="text-[11px] text-slate-500">Kết quả cập nhật tự động</span>
         </div>
 
         {/* Normalization Toggles */}
@@ -232,3 +226,4 @@ export const NormalizationToolbar: React.FC<NormalizationToolbarProps> = ({
     </div>
   );
 };
+
