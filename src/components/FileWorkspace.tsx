@@ -11,6 +11,8 @@ interface FileWorkspaceProps {
   onSelectSheetB?: (sheet: string) => void;
   isLoadingA: boolean;
   isLoadingB: boolean;
+  errorA?: string;
+  errorB?: string;
 }
 
 export const FileWorkspace: React.FC<FileWorkspaceProps> = ({
@@ -22,6 +24,8 @@ export const FileWorkspace: React.FC<FileWorkspaceProps> = ({
   onSelectSheetB,
   isLoadingA,
   isLoadingB,
+  errorA,
+  errorB,
 }) => {
   const inputRefA = useRef<HTMLInputElement>(null);
   const inputRefB = useRef<HTMLInputElement>(null);
@@ -82,7 +86,7 @@ export const FileWorkspace: React.FC<FileWorkspaceProps> = ({
                   {fileA.name}
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  {(fileA.size / 1024).toFixed(1)} KB • {fileA.format.toUpperCase()}
+                  {fileA.isSample ? 'Dữ liệu mẫu' : `${(fileA.size / 1024).toFixed(1)} KB`} • {fileA.format.toUpperCase()}
                 </p>
               </div>
             </div>
@@ -115,7 +119,7 @@ export const FileWorkspace: React.FC<FileWorkspaceProps> = ({
           >
             <Upload className="w-4 h-4 text-slate-400 group-hover:text-emerald-600" />
             <p className="text-xs font-semibold text-slate-600 group-hover:text-emerald-700">
-              Bấm hoặc kéo thả để tải File A (Excel, XML, Word, CSV)
+              Bấm hoặc kéo thả để tải File A (Excel, XML, DOCX, CSV, TXT)
             </p>
           </div>
         )}
@@ -123,10 +127,15 @@ export const FileWorkspace: React.FC<FileWorkspaceProps> = ({
         <input
           ref={inputRefA}
           type="file"
-          accept=".xlsx,.xls,.csv,.xml,.docx,.doc,.txt,.pdf"
-          onChange={(e) => e.target.files?.[0] && onFileUploadA(e.target.files[0])}
+          accept=".xlsx,.xls,.csv,.xml,.docx,.txt"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onFileUploadA(file);
+            e.currentTarget.value = '';
+          }}
           className="hidden"
         />
+        {errorA && <p role="alert" className="mt-1 text-xs text-rose-700">{errorA}</p>}
       </div>
 
       {/* ----------------- ZONE B: FILE ĐỐI ỨNG / THUẾ / NGÂN HÀNG ----------------- */}
@@ -170,7 +179,7 @@ export const FileWorkspace: React.FC<FileWorkspaceProps> = ({
                   {fileB.name}
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  {(fileB.size / 1024).toFixed(1)} KB • {fileB.format.toUpperCase()}
+                  {fileB.isSample ? 'Dữ liệu mẫu' : `${(fileB.size / 1024).toFixed(1)} KB`} • {fileB.format.toUpperCase()}
                 </p>
               </div>
             </div>
@@ -203,7 +212,7 @@ export const FileWorkspace: React.FC<FileWorkspaceProps> = ({
           >
             <Upload className="w-4 h-4 text-slate-400 group-hover:text-blue-600" />
             <p className="text-xs font-semibold text-slate-600 group-hover:text-blue-700">
-              Bấm hoặc kéo thả để tải File B (Excel, XML, Word, CSV)
+              Bấm hoặc kéo thả để tải File B (Excel, XML, DOCX, CSV, TXT)
             </p>
           </div>
         )}
@@ -211,10 +220,15 @@ export const FileWorkspace: React.FC<FileWorkspaceProps> = ({
         <input
           ref={inputRefB}
           type="file"
-          accept=".xlsx,.xls,.csv,.xml,.docx,.doc,.txt,.pdf"
-          onChange={(e) => e.target.files?.[0] && onFileUploadB(e.target.files[0])}
+          accept=".xlsx,.xls,.csv,.xml,.docx,.txt"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onFileUploadB(file);
+            e.currentTarget.value = '';
+          }}
           className="hidden"
         />
+        {errorB && <p role="alert" className="mt-1 text-xs text-rose-700">{errorB}</p>}
       </div>
     </div>
   );
@@ -232,3 +246,4 @@ function getFormatIcon(format: string) {
       return <AlertCircle className="w-6 h-6 text-slate-400" />;
   }
 }
+
