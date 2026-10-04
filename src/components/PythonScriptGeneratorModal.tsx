@@ -12,25 +12,22 @@ export const PythonScriptGeneratorModal: React.FC<PythonScriptGeneratorModalProp
 }) => {
   const [copied, setCopied] = useState(false);
 
-  const pythonSourceCode = `""\"
+  const pythonSourceCode = `"""
 PHẦN MỀM ĐỐI SOÁT TOÀN DIỆN KẾ TOÁN (FULL-CONTENT DIFFING)
 =========================================================
 - Tác giả: Senior Python Developer & Tax/Accounting Systems Expert
 - Môi trường: Offline 100% (Windows / Mac / Linux)
 - Giao diện: CustomTkinter (Tone xanh dương / trắng chuẩn doanh nghiệp)
-- Chức năng: Đối soát cùng & khác định dạng (Excel, XML, CSV),
-  So sánh chi tiết ô/dòng, tự động thêm Cột Kiểm Chứng, xuất báo cáo Excel tô màu.
+- Chức năng: Đối soát Excel/CSV theo dòng, thêm Cột Kiểm Chứng, xuất báo cáo Excel.
 
 Yêu cầu cài đặt thư viện:
 pip install customtkinter pandas openpyxl pillow
-""\"
+"""
 
 import os
-import sys
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import pandas as pd
-import numpy as np
 
 # Cấu hình giao diện CustomTkinter chuẩn Doanh nghiệp
 ctk.set_appearance_mode("Dark")
@@ -116,7 +113,7 @@ class AccountingDiffApp(ctk.CTk):
 
         btn_export = ctk.CTkButton(
             opts_frame,
-            text="📥 Xuất Excel Tô Màu",
+            text="📥 Xuất Excel",
             command=self.export_excel,
             fg_color="#0284c7",
             hover_color="#0369a1"
@@ -132,14 +129,22 @@ class AccountingDiffApp(ctk.CTk):
         path = filedialog.askopenfilename(filetypes=[("Supported Files", "*.xlsx *.xls *.csv")])
         if path:
             self.file_a_path = path
-            self.df_a = pd.read_excel(path) if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path)
+            try:
+                self.df_a = pd.read_excel(path) if path.lower().endswith(('.xlsx', '.xls')) else pd.read_csv(path)
+            except Exception as exc:
+                messagebox.showerror("Không đọc được tệp", str(exc))
+                return
             self.lbl_file_a.configure(text=f"{os.path.basename(path)} ({len(self.df_a)} dòng)")
 
     def load_file_b(self):
         path = filedialog.askopenfilename(filetypes=[("Supported Files", "*.xlsx *.xls *.csv")])
         if path:
             self.file_b_path = path
-            self.df_b = pd.read_excel(path) if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path)
+            try:
+                self.df_b = pd.read_excel(path) if path.lower().endswith(('.xlsx', '.xls')) else pd.read_csv(path)
+            except Exception as exc:
+                messagebox.showerror("Không đọc được tệp", str(exc))
+                return
             self.lbl_file_b.configure(text=f"{os.path.basename(path)} ({len(self.df_b)} dòng)")
 
     def run_diff(self):
@@ -148,11 +153,18 @@ class AccountingDiffApp(ctk.CTk):
             return
 
         self.txt_result.delete("1.0", "end")
-        self.txt_result.insert("1.0", "⏳ Đang xử lý đối soát từng ô dữ liệu...\n\n")
+        self.txt_result.insert("1.0", "⏳ Đang xử lý đối soát từng ô dữ liệu...\\n\\n")
 
         # Chuẩn hóa dữ liệu
         df1 = self.df_a.copy()
         df2 = self.df_b.copy()
+        all_columns = list(dict.fromkeys([*df1.columns, *df2.columns]))
+
+        def normalize(value):
+            if pd.isna(value):
+                return ""
+            value = str(value).strip() if self.chk_trim.get() else str(value)
+            return value.casefold() if self.chk_lower.get() else value
 
         if self.chk_trim.get():
             df1 = df1.applymap(lambda x: str(x).strip() if pd.notnull(x) else x)
@@ -175,12 +187,11 @@ class AccountingDiffApp(ctk.CTk):
             else:
                 # Compare cells
                 diffs = []
-                for col in df1.columns:
-                    if col in df2.columns:
-                        v1 = row_a[col]
-                        v2 = row_b[col]
-                        if str(v1) != str(v2):
-                            diffs.append(f"{col}: [{v1}] ↔ [{v2}]")
+                for col in all_columns:
+                    v1 = row_a.get(col, "")
+                    v2 = row_b.get(col, "")
+                    if normalize(v1) != normalize(v2):
+                        diffs.append(f"{col}: [{v1}] ↔ [{v2}]")
 
                 if not diffs:
                     status = "✅ Khớp hoàn toàn"
@@ -195,16 +206,17 @@ class AccountingDiffApp(ctk.CTk):
                 "Cột Kiểm Chứng": audit_note
             })
 
-        self.diff_results = pd.DataFrame(results_log)
+        self.diff_results = pd.DataFrame(results_log, columns=["STT", "Trạng Thái", "Cột Kiểm Chứng"])
         
         # Display Summary Output
         matched = len(self.diff_results[self.diff_results["Trạng Thái"] == "✅ Khớp hoàn toàn"])
         mismatched = len(self.diff_results[self.diff_results["Trạng Thái"] == "⚠️ Lệch chi tiết"])
 
-        summary_text = f"=== KẾT QUẢ ĐỐI SOÁT CHÍNH XÁC ===\n"
-        summary_text += f"- Tổng số dòng đối soát: {max_rows}\n"
-        summary_text += f"- Khớp hoàn toàn: {matched} dòng ({round(matched/max_rows*100, 1)}%)\n"
-        summary_text += f"- Lệch chi tiết: {mismatched} dòng\n\n"
+        summary_text = f"=== KẾT QUẢ ĐỐI SOÁT CHÍNH XÁC ===\\n"
+        summary_text += f"- Tổng số dòng đối soát: {max_rows}\\n"
+        match_rate = round(matched / max_rows * 100, 1) if max_rows else 0
+        summary_text += f"- Khớp hoàn toàn: {matched} dòng ({match_rate}%)\\n"
+        summary_text += f"- Lệch chi tiết: {mismatched} dòng\\n\\n"
         summary_text += self.diff_results.to_string(index=False)
 
         self.txt_result.delete("1.0", "end")
@@ -218,7 +230,7 @@ class AccountingDiffApp(ctk.CTk):
         path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel Files", "*.xlsx")])
         if path:
             self.diff_results.to_excel(path, index=False)
-            messagebox.showinfo("Thành công", f"Đã xuất Báo Cáo Kiểm Chứng thành công:\n{path}")
+            messagebox.showinfo("Thành công", f"Đã xuất Báo Cáo Kiểm Chứng thành công:\\n{path}")
 
 if __name__ == "__main__":
     app = AccountingDiffApp()
@@ -315,3 +327,4 @@ if __name__ == "__main__":
     </div>
   );
 };
+
