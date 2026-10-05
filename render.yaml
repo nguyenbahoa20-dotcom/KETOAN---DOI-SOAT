@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: phan-mem-doi-soat-ke-toan
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
